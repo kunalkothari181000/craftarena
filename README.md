@@ -97,14 +97,17 @@ npm start
 
 ---
 
-## 🌐 Endpoints
+## 🌐 Endpoints & Admin Dashboard
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
+| `GET` | `/admin` or `/dashboard` | **Live Web Admin Control Panel** (metrics, sync triggers, diagnostics) |
 | `GET` | `/health` | Health check (`{"status": "OK"}`) |
 | `GET` | `/api/status` | Real-time database counts (products, variants, orders) & last 10 sync logs |
 | `GET/POST`| `/api/sync/trigger?token=...&mode=prices` | On-demand gold price update |
 | `GET/POST`| `/api/sync/trigger?token=...&mode=catalogue` | On-demand full catalogue sync |
+| `GET` | `/api/admin/test-optigo` | Real-time diagnostic ping to Optigo ERP API |
+| `GET` | `/api/admin/test-shopify` | Real-time diagnostic ping to Shopify Store GraphQL |
 | `POST` | `/api/webhooks/shopify/orders-create` | Shopify webhook listener for new orders |
 | `POST` | `/api/webhooks/shopify/orders-cancel` | Shopify webhook listener for cancelled orders |
 
