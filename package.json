@@ -1,0 +1,31 @@
+{
+  "name": "craftarena-optigo-sync",
+  "version": "1.0.0",
+  "description": "Automated Optigo ERP to Shopify Jewellery Integration Middleware",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test:fetch": "node src/scripts/testFetch.js",
+    "sync:prices": "node src/scripts/runSync.js --mode=prices",
+    "sync:catalogue": "node src/scripts/runSync.js --mode=catalogue"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3"
+  },
+  "keywords": [
+    "shopify",
+    "optigo",
+    "erp",
+    "jewellery",
+    "sync",
+    "ecommerce"
+  ],
+  "author": "CraftArena",
+  "license": "ISC"
+}
+
