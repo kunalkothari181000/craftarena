@@ -1,15 +1,56 @@
 import { config } from '../config/env.js';
 
 let primaryLocationId = null;
+let currentAccessToken = config.shopify.accessToken;
 
 /**
- * Execute GraphQL query against Shopify Admin API with rate-limit handling
+ * Automatically fetch or refresh Shopify access token using Client Credentials
+ */
+export async function refreshShopifyAccessToken() {
+  const { shopDomain, clientId, clientSecret } = config.shopify;
+
+  if (!clientId || !clientSecret) {
+    return currentAccessToken;
+  }
+
+  const endpoint = `https://${shopDomain}/admin/oauth/access_token`;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'client_credentials'
+    })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Failed to refresh Shopify token: HTTP ${res.status} - ${errorText}`);
+  }
+
+  const data = await res.json();
+  if (data.access_token) {
+    currentAccessToken = data.access_token;
+    config.shopify.accessToken = data.access_token;
+    return currentAccessToken;
+  }
+
+  throw new Error(`Failed to obtain access token from response: ${JSON.stringify(data)}`);
+}
+
+/**
+ * Execute GraphQL query against Shopify Admin API with rate-limit and auto-refresh handling
  */
 export async function shopifyGraphQL(query, variables = {}, retries = 3) {
-  const { shopDomain, accessToken, apiVersion } = config.shopify;
+  const { shopDomain, apiVersion } = config.shopify;
 
-  if (!shopDomain || !accessToken) {
-    throw new Error('Shopify credentials (SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN) are not configured.');
+  if (!currentAccessToken && config.shopify.clientId && config.shopify.clientSecret) {
+    await refreshShopifyAccessToken();
+  }
+
+  if (!shopDomain || !currentAccessToken) {
+    throw new Error('Shopify credentials (domain and token or client credentials) are not configured.');
   }
 
   const endpoint = `https://${shopDomain}/admin/api/${apiVersion}/graphql.json`;
@@ -20,10 +61,17 @@ export async function shopifyGraphQL(query, variables = {}, retries = 3) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': accessToken
+          'X-Shopify-Access-Token': currentAccessToken
         },
         body: JSON.stringify({ query, variables })
       });
+
+      // Handle token expiration
+      if (response.status === 401 && config.shopify.clientId && config.shopify.clientSecret) {
+        console.log('[Shopify Auth] Token expired or invalid. Refreshing token...');
+        await refreshShopifyAccessToken();
+        continue;
+      }
 
       if (response.status === 429) {
         const retryAfter = parseFloat(response.headers.get('Retry-After') || '2');
@@ -190,6 +238,51 @@ export async function createShopifyProduct(groupedProduct) {
   }
 
   const createdProduct = data.productCreate.product;
+  const initialVariant = createdProduct.variants?.nodes?.[0];
+
+  // Configure first variant SKU and Price
+  if (initialVariant && groupedProduct.variants.length > 0) {
+    const firstVar = groupedProduct.variants[0];
+    const updateMutation = `
+      mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+          productVariants {
+            id
+            sku
+            price
+            inventoryItem {
+              id
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const bulkUpdateRes = await shopifyGraphQL(updateMutation, {
+      productId: createdProduct.id,
+      variants: [
+        {
+          id: initialVariant.id,
+          price: firstVar.price.toFixed(2),
+          compareAtPrice: firstVar.compareAtPrice ? firstVar.compareAtPrice.toFixed(2) : null,
+          inventoryItem: {
+            sku: firstVar.sku
+          }
+        }
+      ]
+    });
+
+    const updatedNode = bulkUpdateRes?.productVariantsBulkUpdate?.productVariants?.[0];
+    if (updatedNode) {
+      initialVariant.sku = updatedNode.sku;
+      initialVariant.price = updatedNode.price;
+    }
+  }
+
   return createdProduct;
 }
 

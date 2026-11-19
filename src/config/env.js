@@ -20,6 +20,8 @@ export const config = {
 
   shopify: {
     shopDomain: process.env.SHOPIFY_SHOP_DOMAIN || '',
+    clientId: process.env.SHOPIFY_CLIENT_ID || '',
+    clientSecret: process.env.SHOPIFY_CLIENT_SECRET || '',
     accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
     apiVersion: process.env.SHOPIFY_API_VERSION || '2024-10',
     webhookSecret: process.env.SHOPIFY_WEBHOOK_SECRET || ''
